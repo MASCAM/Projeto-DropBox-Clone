@@ -2,11 +2,17 @@ class DropBoxController {
 
     constructor() {
 
-        this.btnSendFileEl = document.querySelector('#btn-send-file');
-        this.inputFilesEl = document.querySelector('#files');
+        this.onSelectionChange = new Event('selectionchange'); //eventos criados
+
+        this.btnSendFileEl = document.querySelector('#btn-send-file'); //botões do client
+        this.btnNewFolder = document.querySelector('#btn-new-folder');
+        this.btnRename = document.querySelector('#btn-rename');
+        this.btnDelete = document.querySelector('#btn-delete');
+
+        this.inputFilesEl = document.querySelector('#files'); //lista de arquivos do client
         this.listFilesEl = document.querySelector('#list-of-files-and-directories');
         
-        this.snackModalEl = document.querySelector('#react-snackbar-root'); //carregando os elementos do formulario html
+        this.snackModalEl = document.querySelector('#react-snackbar-root'); //barra de progresso de envio de arquivo
         this.progressBarEl = this.snackModalEl.querySelector('.mc-progress-bar-fg');
         this.nameFileEl = this.snackModalEl.querySelector('.filename');
         this.timeLeftEl = this.snackModalEl.querySelector('.timeleft');
@@ -35,8 +41,46 @@ class DropBoxController {
 
     } //fechando o connectFirebase()
 
+    getSelection() { //método para descobrir os arquivos da tela que estão selecionados
+
+        return this.listFilesEl.querySelectorAll('.selected');
+
+    } //fechando o getSelection()
+
     initEvents() {
 
+        this.btnRename.addEventListener('click', e => {
+
+            let li = this.getSelection()[0]; //para pegar o primeiro arquivo selecionado
+            let file = JSON.parse(li.dataset.file); //para converter o arquivo no dataset de string para objeto
+            let name = prompt("Renomear o arquivo:", file.name); //para pegar o novo nome digitado pelo usuário
+            if (name) {
+
+                file.name = name; //substitui o nome do arquivo pelo digitado
+                this.getFirebaseRef().child(li.dataset.key).set(file); //para procurar o arquivo no firebase cuja key na referência de arquivos é a mesma do li selecionado
+                //e substituir pelo arquivo atual
+            }
+
+        });
+        this.listFilesEl.addEventListener('selectionchange', e => {
+
+            switch (this.getSelection().length) { //para mostrar os botões de acordo com o número de arquivos selecionados
+
+                case 0:
+                    this.btnDelete.style.display = 'none';
+                    this.btnRename.style.display = 'none';
+                    break;
+                case 1:
+                    this.btnDelete.style.display = 'block';
+                    this.btnRename.style.display = 'block';
+                    break;
+                default:
+                    this.btnDelete.style.display = 'block';
+                    this.btnRename.style.display = 'none';
+
+            }
+
+        });
         this.btnSendFileEl.addEventListener('click', event => { //para enviar o arquivo
 
             this.inputFilesEl.click();
@@ -49,10 +93,10 @@ class DropBoxController {
 
                 responses.forEach(resp => {
 
-                    this.getFirebaseRef().push().set(resp.files['input-file']);
+                    this.getFirebaseRef().push().set(resp.files['input-file']); //para passar o arquivo enviado para o db do firebase
 
                 });
-                this.uploadComplete();
+                this.uploadComplete(); //finalizando o upload
 
             }).catch(err => {
 
@@ -367,10 +411,12 @@ class DropBoxController {
 
         let li = document.createElement('li'); //para criar o elemento de arquivos na tela
         li.dataset.key = key;
+        li.dataset.file = JSON.stringify(file); //para guardar o arquivo e a key no elemento li
         li.innerHTML = `
             ${this.getFileIconView(file)}
             <div class="name text-center">${file.name}</div>
         `;
+        this.initEventsLi(li);
         return li; //retorna o elemento criado com as propriedades do arquivo 
 
     } //fechando o getFileView()
@@ -391,5 +437,63 @@ class DropBoxController {
         }); 
 
     } //fechando o readFiles()
+
+    initEventsLi(li) {
+
+        li.addEventListener('click', e => {
+
+            if (e.shiftKey) { //tratamento para seleção caso tecla shift seja pressionada
+
+                let firstLi = this.listFilesEl.querySelector('.selected'); //para achar o primeiro arquivo selecionado
+                if (firstLi) {
+
+                    let indexStart;
+                    let indexEnd;
+                    let lis = li.parentElement.childNodes;
+                    lis.forEach((el, index) => {
+
+                        if (firstLi === el) { //se o primeiro elemento selecionado for igual ao atual
+
+                            indexStart = index //o índice inicial é igual ao índice atual
+
+                        }
+                        if (li === el) { //se o elemento atual for igual ao último clicado com shift
+
+                            indexEnd = index; //o índice final é igual ao índice do elemento atual
+
+                        }
+
+                    });
+                    let index = [indexStart, indexEnd].sort(); //para organizar os índices do maior para o menor
+                    lis.forEach((el, i) => {
+
+                        if (i >= index[0] && i <= index[1]) {
+
+                            el.classList.add('selected'); //se o arquivo está entre os dois selecionados com shift, seleciona ele
+
+                        }
+
+                    });
+                    this.listFilesEl.dispatchEvent(this.onSelectionChange); //para 'avisar' que a seleção de arquivo foi mudada
+                    return true;
+
+                }
+
+            }
+            if (!e.ctrlKey) { //tratamento para seleção caso tecla ctrl seja pressionada
+
+                this.listFilesEl.querySelectorAll('li.selected').forEach(el => { //se o ctrl não estiver pressionado
+                    //ao clicar num arquivo, tira a seleção de todos os arquivos selecionados
+                    el.classList.remove('selected');
+
+                });
+
+            }
+            li.classList.toggle('selected'); //para selecionar o li
+            this.listFilesEl.dispatchEvent(this.onSelectionChange); //para 'avisar' que a seleção de arquivo foi mudada
+
+        });
+
+    } //fechando o initEventsLi()
 
 } //fechando a classe DropBoxController

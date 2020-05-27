@@ -2,6 +2,8 @@ class DropBoxController {
 
     constructor() {
 
+        this.currentFolder = ['hcode'];
+
         this.onSelectionChange = new Event('selectionchange'); //eventos criados
 
         this.btnSendFileEl = document.querySelector('#btn-send-file'); //botões do client
@@ -47,8 +49,62 @@ class DropBoxController {
 
     } //fechando o getSelection()
 
+    removeTask() {
+
+        let promises = [];
+        this.getSelection().forEach(li => {
+
+            let file = JSON.parse(li.dataset.file);
+            let key = li.dataset.key;
+            let formData = new FormData();
+            formData.append('path', file.path); //adicionando o caminho do arquivo no formulário
+            formData.append('key', key); //adicionando a key do arquivo no firebase no formulário
+            promises.push(this.ajax('file', 'DELETE', formData)); //empilha a resposta de promessa do ajax no vetor de promessas
+
+        });
+        return Promise.all(promises);
+
+    } //fechando o removeTask()
+
     initEvents() {
 
+        this.btnNewFolder.addEventListener('click', e => {
+
+            let name = prompt('Nome da nova pasta:');
+            if (name) {
+
+                this.getFirebaseRef.push().set({
+
+                    name,
+                    type: 'folder',
+                    path: this.currentFolder.join('/'),
+
+                });
+
+            }
+
+        });
+        this.btnDelete.addEventListener('click', e => {
+
+            this.removeTask().then(responses => {
+
+                responses.forEach(response => {
+
+                    if (response.fields.key) {
+
+                        this.getFirebaseRef().child(response.fields.key).remove(); //deleta o arquivo do firebase
+
+                    }
+
+                });
+
+            }).catch(err => {
+
+                console.log(err);
+
+            });
+
+        });
         this.btnRename.addEventListener('click', e => {
 
             let li = this.getSelection()[0]; //para pegar o primeiro arquivo selecionado
@@ -130,42 +186,53 @@ class DropBoxController {
 
     }
 
+    ajax(url, method = 'GET', formData = new FormData(), onProgress = function() {}, onloadStart = function() {}) { //tratando a solicitação ajax
+
+        return new Promise((resolve, reject) => {
+
+            let ajax = new XMLHttpRequest();
+            ajax.open(method, url);
+            ajax.onload = event => {
+    
+                try {
+    
+                    resolve(JSON.parse(ajax.responseText));
+            
+                } catch (e) {
+    
+                    reject(e);
+    
+                }
+    
+            };
+            ajax.onerror = event => {
+    
+                reject(event);
+    
+            };
+            ajax.upload.onprogress = onProgress() //para ser executado enquanto acontece o envio ajax
+            onloadStart();
+            ajax.send(formData);
+
+        });
+
+
+    } //fechando o ajax()
+
     uploadTask(files) {
 
         let promises = [];
         [...files].forEach(file => { //para cada arquivo cria uma promessa com envio ajax para o db
 
-            promises.push(new Promise((resolve, reject) => {
+            let formData = new FormData();
+            formData.append('input-file', file); //criando o formulário que será enviado pelo ajax com o arquivo
+            promises.push(this.ajax('/upload', 'POST', formData, () => { //passando função onProgress
 
-                let ajax = new XMLHttpRequest();
-                ajax.open('POST', '/upload');
-                ajax.onload = event => {
+                this.uploadProgress(event, file);
 
-                    try {
+            }, () => { //passando função onStart
 
-                        resolve(JSON.parse(ajax.responseText));
-                
-                    } catch (e) {
-
-                        reject(e);
-
-                    }
-
-                };
-                ajax.onerror = event => {
-
-                    reject(event);
-
-                };
-                ajax.upload.onprogress = event => { //para ser executado enquanto acontece o envio ajax
-
-                    this.uploadProgress(event, file);
-
-                };
-                let formData = new FormData();
-                formData.append('input-file', file); //criando o formulário que será enviado pelo ajax com o arquivo
                 this.startUploadTime = Date.now();
-                ajax.send(formData);
 
             }));
 

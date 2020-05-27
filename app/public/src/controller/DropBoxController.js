@@ -2,26 +2,29 @@ class DropBoxController {
 
     constructor() {
 
+        //pasta de leitura inicial (que muda ao entrar em outras pastas)
         this.currentFolder = ['hcode'];
-
-        this.onSelectionChange = new Event('selectionchange'); //eventos criados
-
-        this.btnSendFileEl = document.querySelector('#btn-send-file'); //botões do client
+        //eventos criados
+        this.onSelectionChange = new Event('selectionchange'); 
+        //botões do client
+        this.btnSendFileEl = document.querySelector('#btn-send-file'); 
         this.btnNewFolder = document.querySelector('#btn-new-folder');
         this.btnRename = document.querySelector('#btn-rename');
         this.btnDelete = document.querySelector('#btn-delete');
-
-        this.inputFilesEl = document.querySelector('#files'); //lista de arquivos do client
+        //lista de arquivos do client
+        this.inputFilesEl = document.querySelector('#files'); 
         this.listFilesEl = document.querySelector('#list-of-files-and-directories');
-        
-        this.snackModalEl = document.querySelector('#react-snackbar-root'); //barra de progresso de envio de arquivo
+        //breadCrumbs
+        this.navEl = document.querySelector('#browse-location'); //para achar o breadCrumb atual
+        //barra de progresso de envio de arquivo
+        this.snackModalEl = document.querySelector('#react-snackbar-root'); 
         this.progressBarEl = this.snackModalEl.querySelector('.mc-progress-bar-fg');
         this.nameFileEl = this.snackModalEl.querySelector('.filename');
         this.timeLeftEl = this.snackModalEl.querySelector('.timeleft');
-
-        this.connectFirebase();
+        //inicialização do client
+        this.connectFirebase(); 
         this.initEvents();
-        this.readFiles();
+        this.openFolder();
 
     } //fechando o constructor()
 
@@ -92,7 +95,7 @@ class DropBoxController {
 
                     if (response.fields.key) {
 
-                        this.getFirebaseRef().child(response.fields.key).remove(); //deleta o arquivo do firebase
+                        this.getFirebaseRef().child(response.fields.key).remove(); //deleta a referência do arquivo do firebase
 
                     }
 
@@ -174,9 +177,14 @@ class DropBoxController {
 
     } //fechando o uploadComplete()
 
-    getFirebaseRef() { //para pegar as referências pro firebase
+    getFirebaseRef(path) { //para pegar as referências pro firebase
 
-        return firebase.database().ref('files');
+        if (!path) {
+
+            path = this.currentFolder.join('/'); //junta os nomes das pastas com uma barra entre eles
+
+        }
+        return firebase.database().ref(path); //acessa a divisao no database com a referência path
 
     } //fechando o getFirebaseRef()
 
@@ -489,7 +497,8 @@ class DropBoxController {
     } //fechando o getFileView()
 
     readFiles() { //para ler os arquivos do firebase
-
+        
+        this.lastFolder = this.currentFolder.join('/');
         this.getFirebaseRef().on('value', snapshot => { //para carregar as referências do db num determinado momento
 
             this.listFilesEl.innerHTML = '';
@@ -497,7 +506,11 @@ class DropBoxController {
 
                 let key = snapshotItem.key;
                 let data = snapshotItem.val(); //carregando os valores e keys de cada item
-                this.listFilesEl.appendChild(this.getFileView(data, key)); //para listar os arquivos do db na tela
+                if (data.type) {
+
+                    this.listFilesEl.appendChild(this.getFileView(data, key)); //para listar os arquivos do db na tela
+
+                }
 
             });
 
@@ -505,8 +518,80 @@ class DropBoxController {
 
     } //fechando o readFiles()
 
+    openFolder() { //método para abrir pastas
+
+        if (this.lastFolder) {
+
+            this.getFirebaseRef(this.lastFolder).off(); //para parar de ouvir a pasta anterior
+
+        }
+        this.renderNav(); //para atualizar a visualização da navegação
+        this.readFiles(); //lê os arquivos da pasta aberta
+
+    }   //fechando o openFolder()
+
+    renderNav() { //atualiza os breadCrumbs
+
+        let nav = document.createElement('nav');
+        let path = [];
+        for (let i = 0; i < this.currentFolder.length; i++) { //para cada pasta cria um scan nos breadCrumbs
+
+            let folderName = this.currentFolder[i];
+            let span = document.createElement('span');
+            path.push(folderName);
+            if ((i + 1) === this.currentFolder.length) {
+
+                span.innerHTML = folderName; //se for a última pasta só exibe o nome
+
+            } else {
+                
+                span.className = 'breadcrumb-segment_wrapper'; //armazena no span o segmento breadcrumb com o nome da pasta e o caminho dela para poder ser clicado
+                span.innerHTML = `
+                    <span class="ue-effect-container uee-BreadCrumbSegment-link-0">
+                        <a href="#" data-path= "${path.join('/')}" class="breadcrumb-segment">${folderName}</a>
+                    </span>
+                    <svg width="24" height="24" viewBox="0 0 24 24" class="mc-icon-template-stateless" style="top: 4px; position: relative;">
+                        <title>arrow-right</title>
+                        <path d="M10.414 7.05l4.95 4.95-4.95 4.95L9 15.534 12.536 12 9 8.464z" fill="#637282" fill-rule="evenodd"></path>
+                    </svg>
+                `;
+
+            }
+            nav.appendChild(span); //coloca o span no nav
+
+        }
+        this.navEl.innerHTML = nav.innerHTML; //substitui o nav atual pelo criado
+        this.navEl.querySelectorAll('a').forEach(a => { //para cada elemento clicável no nav
+
+            a.addEventListener('click', e => { //adiciona escuta para o evento de clique
+
+                e.preventDefault();
+                this.currentFolder = a.dataset.path.split('/'); //passa o caminho do breadcrumb clicado para a pasta atual
+                this.openFolder(); //abre a pasta atual
+
+            });
+
+        });
+
+    } //fechando o renderNav()
+
     initEventsLi(li) {
 
+        li.addEventListener('dblclick', e => {
+
+            let file = JSON.parse(li.dataset.file);
+            switch (file.type) {
+
+                case 'folder':
+                    this.currentFolder.push(file.name); //adiciona a nova pasta ao caminho atual
+                    this.openFolder(); //efetivamente abre a pasta com a visualização
+                    break;
+                default:
+                    window.open('/file?path=' + file.path); //para abrir o arquivo
+
+            }
+
+        });
         li.addEventListener('click', e => {
 
             if (e.shiftKey) { //tratamento para seleção caso tecla shift seja pressionada

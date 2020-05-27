@@ -5,7 +5,45 @@ var fs = require('fs');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
+
   res.render('index', { title: 'Express' });
+
+});
+
+router.get('/file', (req, res) => {
+
+  let path = './' + req.query.path; //achando o cmainho do arquivo a ser aberto
+  if (fs.existsSync(path)) {
+
+    fs.readFile(path, (err, data) => { //lendo o arquivo efetivamente no caminho escolhido
+
+      if (err) {
+
+        console.error(err);
+        res.status(400).json({
+
+          error: err,
+
+        });
+
+      } else {
+
+        res.status(200).end(data);
+
+      }
+
+    });
+
+  } else {
+
+    res.status(404).json({
+
+      error: 'File not found.'
+
+    });
+
+  }
+
 });
 
 router.delete('/file', (req, res) => {
@@ -31,12 +69,12 @@ router.delete('/file', (req, res) => {
 
           }); //devolve o json com status de erro da resposta
 
-        } else {
+        } else { 
+          
+          res.status(404).json({ //caso não ache o arquivo retorna um erro
 
-          res.json({ //resposta com dados do arquivo excluido
-
-            fields,
-      
+            error: 'File not found.',
+    
           });
 
         }

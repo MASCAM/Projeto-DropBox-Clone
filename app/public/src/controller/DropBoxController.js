@@ -152,7 +152,20 @@ class DropBoxController {
 
                 responses.forEach(resp => {
 
-                    this.getFirebaseRef().push().set(resp.files['input-file']); //para passar o arquivo enviado para o db do firebase
+                    
+                    resp.ref.getDownloadURL().then((downloadURL) => { //para pegar a URL gerada para download no firebase storage
+
+                        this.getFirebaseRef().push().set({ //para passar o arquivo enviado para o storage do firebase
+
+                            name: resp.name,
+                            type: resp.contentType,
+                            path: downloadURL,
+                            size: resp.size,
+    
+                        });
+                        console.log(downloadURL);
+
+                    }); 
 
                 });
                 this.uploadComplete(); //finalizando o upload
@@ -232,15 +245,37 @@ class DropBoxController {
         let promises = [];
         [...files].forEach(file => { //para cada arquivo cria uma promessa com envio ajax para o db
 
-            let formData = new FormData();
-            formData.append('input-file', file); //criando o formulário que será enviado pelo ajax com o arquivo
-            promises.push(this.ajax('/upload', 'POST', formData, () => { //passando função onProgress
+            promises.push(new Promise((resolve, reject) => {
 
-                this.uploadProgress(event, file);
+                let fileRef = firebase.storage().ref(this.currentFolder.join('/')).child(file.name); //para registrar o arquivo no diretorio correspondente do firebase storage
+                let task = fileRef.put(file); //para efetivamente dar upload do arquivo
+                task.on('state_changed', snapshot => { //quase como um forEach
 
-            }, () => { //passando função onStart
+                    this.uploadProgress({ //passando o status atual do upload
 
-                this.startUploadTime = Date.now();
+                        loaded: snapshot.bytesTransferred,
+                        total: snapshot.totalBytes,
+
+                    }, file);
+
+                }, error => {
+
+                    console.error(error);
+                    reject(error);
+
+                }, snapshot => {
+
+                    fileRef.getMetadata().then(metadata => { //para pegar os dados do arquivo e devolver como promessa
+
+                        resolve(metadata);
+
+                    }).catch(err => {
+
+                        reject(err);
+
+                    });
+
+                });
 
             }));
 
@@ -587,7 +622,7 @@ class DropBoxController {
                     this.openFolder(); //efetivamente abre a pasta com a visualização
                     break;
                 default:
-                    window.open('/file?path=' + file.path); //para abrir o arquivo
+                    window.open(file.path); //para abrir o arquivo
 
             }
 

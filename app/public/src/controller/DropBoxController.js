@@ -73,7 +73,7 @@ class DropBoxController {
             let name = prompt('Nome da nova pasta:');
             if (name) {
 
-                this.getFirebaseRef.push().set({
+                this.getFirebaseRef().push().set({
 
                     name,
                     type: 'folder',

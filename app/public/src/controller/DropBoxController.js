@@ -52,6 +52,61 @@ class DropBoxController {
 
     } //fechando o getSelection()
 
+    removeFolderTask(ref, name) { //para deletar pastas
+
+        return new Promise((resolve, reject) => {
+
+            let folderRef = this.getFirebaseRef(ref + '/' + name); //achando o caminho da pasta no db
+            folderRef.on('value', snapshot => { //para percorrer todos os arquivos dentro da pasta
+
+                folderRef.off('value'); //para parar de vigiar a pasta
+                snapshot.forEach(item => {
+
+                    let data = item.val();
+                    if (data.type === 'folder') {
+
+                        this.removeFolderTask(ref + '/' + name, data.name).then(() => { //se for uma pasta dentro de uma pasta chama novamente (recursivo)
+
+                            resolve();
+
+                        }).catch(err => {
+
+                            reject(err);
+
+                        });
+
+                    } else if (data.type) {
+
+                        this.removeFile(ref + '/' + name, data.name).then(() => { //se for um arquivo simplesmente deleta
+
+                            resolve({
+    
+                                fields: {
+                                    
+                                    key: data.key,
+                                
+                                }
+                
+                            });
+
+                        }).catch(err => {
+
+                            reject(err);
+
+                        });;
+
+                    }
+
+                });
+                folderRef.remove();
+
+            });
+            folderRef = firebase.database().ref(this.currentFolder.join('/'));
+
+        });
+
+    } //fechando o removeFolderTask()
+
     removeTask() {
 
         let promises = [];
@@ -59,15 +114,55 @@ class DropBoxController {
 
             let file = JSON.parse(li.dataset.file);
             let key = li.dataset.key;
-            let formData = new FormData();
-            formData.append('path', file.path); //adicionando o caminho do arquivo no formulário
-            formData.append('key', key); //adicionando a key do arquivo no firebase no formulário
-            promises.push(this.ajax('file', 'DELETE', formData)); //empilha a resposta de promessa do ajax no vetor de promessas
+            promises.push(new Promise((resolve, reject) => {
+
+                if (file.type === 'folder') {
+
+                    this.removeFolderTask(this.currentFolder.join('/'), file.name).then(() => {
+                        
+                        resolve({
+    
+                            fields: {
+                                
+                                key,
+                            
+                            }
+            
+                        });
+
+                    });
+
+                } else if(file.type) {
+
+                    this.removeFile(this.currentFolder.join('/'), file.name).then(() => {
+
+                        resolve({
+    
+                            fields: {
+                                
+                                key,
+                            
+                            }
+            
+                        });
+    
+                    });
+
+                }
+
+            }));
 
         });
         return Promise.all(promises);
 
     } //fechando o removeTask()
+
+    removeFile(ref, name) {
+
+        let fileRef = firebase.storage().ref(ref).child(name); //pega a referência do arquivo no firebase storage
+        return fileRef.delete(); //efetivamente deleta o arquivo
+
+    } //fechando o removeFile()
 
     initEvents() {
 
@@ -76,7 +171,7 @@ class DropBoxController {
             let name = prompt('Nome da nova pasta:');
             if (name) {
 
-                this.getFirebaseRef().push().set({
+                this.getFirebaseRef().child(name).set({
 
                     name,
                     type: 'folder',
@@ -163,7 +258,6 @@ class DropBoxController {
                             size: resp.size,
     
                         });
-                        console.log(downloadURL);
 
                     }); 
 

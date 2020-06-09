@@ -171,7 +171,7 @@ class DropBoxController {
             let name = prompt('Nome da nova pasta:');
             if (name) {
 
-                this.getFirebaseRef().child(name).set({
+                this.getFirebaseRef().child(name).set({ //MUITO IMPORTANTE
 
                     name,
                     type: 'folder',
@@ -213,6 +213,7 @@ class DropBoxController {
                 file.name = name; //substitui o nome do arquivo pelo digitado
                 this.getFirebaseRef().child(li.dataset.key).set(file); //para procurar o arquivo no firebase cuja key na referência de arquivos é a mesma do li selecionado
                 //e substituir pelo arquivo atual
+                //MUITO IMPORTANTE
             }
 
         });
@@ -249,7 +250,7 @@ class DropBoxController {
 
                     
                     resp.ref.getDownloadURL().then((downloadURL) => { //para pegar a URL gerada para download no firebase storage
-
+                        //TUDO AQUI MUITO IMPORTANTE
                         this.getFirebaseRef().push().set({ //para passar o arquivo enviado para o storage do firebase
 
                             name: resp.name,
@@ -344,7 +345,7 @@ class DropBoxController {
                 let fileRef = firebase.storage().ref(this.currentFolder.join('/')).child(file.name); //para registrar o arquivo no diretorio correspondente do firebase storage
                 let task = fileRef.put(file); //para efetivamente dar upload do arquivo
                 task.on('state_changed', snapshot => { //quase como um forEach
-
+                    //MUITO IMPORTANTE
                     this.uploadProgress({ //passando o status atual do upload
 
                         loaded: snapshot.bytesTransferred,
